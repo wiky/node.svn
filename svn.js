@@ -1,143 +1,191 @@
-/*jslint node: true */
-'use strict';
-
 var spawn = require('child_process').spawn;
-var path = require('path');
+var fs = require('fs');
+var nodePath = require('path');
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
-//var promise = require('./promise');
+var promise = require('./lib/promise').promise;
 
 /**
- * svn.co = svn.checkout -- finished
- * svn.up = svn.update -- finished
- * svn.sw = svn.switchTo -- finished
- * svn.ls = svn.list -- finished
- * svn.info - finished
- * svn.rm = svn.remove -- todo
- * svn.st = svn.status -- ok
- * svn.add  -- ok
- * svn.cleanup -- ok
- * svn.revert -- todo
- * svn.getType -- get svn type
- * svn.run
+ *    [o] = svn standard method & finished
+ *    [+] = not svn standard method, new add & finished
+ *    [ ] = todo
+ *    
+ * [o] svn.add
+ * [ ] svn.blame
+ * [+] svn.choose
+ * [ ] svn.cat
+ * [o] svn.ci = svn.commit
+ * [o] svn.cleanup
+ * [ ] svn.cl = svn.changeList
+ * [o] svn.co = svn.checkout
+ * [ ] svn.cp = svn.copy
+ * [ ] svn.di = svn.diff
+ * [+] svn.type
+ * [o] svn.info
+ * [o] svn.ls = svn.list
+ * [ ] svn.lock
+ * [o] svn.log
+ * [+] svn.queue
+ * [ ] svn.revert
+ * [ ] svn.rm = svn.remove = svn.del
+ * [+] svn.run
+ * [ ] svn.resolve
+ * [o] svn.st = svn.status
+ * [o] svn.sw = svn.switchTo
+ * [ ] svn.unlock
+ * [o] svn.up = svn.update
  */
 
-var SVN = function(config, callback) {
+/**
+ * node svn command
+ * @param  {Object|string} config config, when string, same as config.cwd
+ * @param  {string} config.cwd Current work directory
+ * @param  {string} [config.username]
+ * @param  {string} [config.password]
+ */
+var SVN = function(config) {
     var _this = this;
     this.config = (typeof config === 'string') ? {
-        path: config
+        cwd: config
     } : (config || {});
-    // TODO: check current work directory is exist or not.
-    this.root = this.config.path || '';
-    this.run('svn', ['--version'], function(err, text) {
-        if (!err) {
-            _this.refreshInfoCache('_info', callback);
-        } else {
-            callback(err, null);
-        }
-    });
+    if (!this.config.cwd) {
+        throw new Error('[SVN Error] no cwd');
+    }
+    this.root = this.config.cwd || '';
 };
 
 util.inherits(SVN, EventEmitter);
 
 var svn = SVN.prototype;
 
-svn.co = svn.checkout = function(options, callback) {
+svn.add = function(path, callback) {
+    return this.run(['add', nodePath.join(this.root, path)], function(err, text) {
+        if (callback) {
+            callback(err, helper.parseActions(text))
+        }
+    });
+};
+
+/**
+ * svn co
+ * @param  {string}   command  url[[ name] ARGS]
+ * @param  {Function} callback
+ */
+svn.co = svn.checkout = function(command, callback, cwd) {
+    console.log(command)
     var _this = this,
         args = [],
-        matched;
-    if (typeof options === 'string') {
-        options = {
-            url: options
-        };
+        options = command.split(/\s+/) || [],
+        url = options.shift(),
+        name = options[0];
+
+    if (typeof callback === 'string') {
+        cwd = callback;
+        callback = null;
     }
-    if (!options.url) {
-        throw new Error('[svn checkout error] no url');
-    }
-    args = ['checkout', options.url];
-    if (!options.name) {
-        matched = options.url.match(/([^\/]+)\/?$/);
-        options.name = matched && matched[1];
+
+    if (!name || name.substr(1, 1) === '-') {
+        name = nodePath.basename(this.root);
+        cwd = cwd || nodePath.dirname(this.root);
     } else {
-        args.push(options.name);
+        name = '';
     }
-    if (options.depth) {
-        args.concat(['--depth', options.depth]);
-    }
-    this.run('svn', args, function(err, info) {
-        if (!err) {
-            _this.root = path.join(_this.root, options.name);
-        }
+
+    args = ['checkout', url].concat(name ? [name] : []).concat(options);
+
+    return this.run(args, function(err, text) {
         if (callback) {
-            callback(err, info);
+            callback(err, helper.parseActions(text));
+        }
+    }, cwd);
+};
+
+svn.choose = function(url, files, callback) {
+    files = [].concat(files);
+    var _this = this,
+        toExecFn = [],
+        doExecFn = function(args) {
+            var path = args.path.replace(/^\/|\/$/, '');
+            if (args.way === 'co') {
+                ret = _this.co([
+                    url.replace(/\/$/, '') + (path ? '/' + path : ''),
+                    path,
+                    '--depth=empty'
+                ].join(' '));
+            } else {
+                ret = _this.up(path);
+            }
+            return ret;
+        };
+
+    toExecFn.push((function(args) {
+        return function(err) {
+            return doExecFn(args);
+        };
+    })({
+        path: '',
+        way: 'co'
+    }));
+    files.forEach(function(file) {
+        var arr = file.replace(/^\/|\/$/, '').replace(/\/?[^\/]+\/?/g, '$`$&,').split(',');
+        arr.pop();
+        arr.forEach(function(path, i) {
+            var way = 'co',
+                cwd = '';
+            if (i === arr.length - 1) {
+                way = 'up';
+                cwd = nodePath.join(_this.root, arr[0]);
+            }
+            toExecFn.push((function(args) {
+                return function(err) {
+                    return doExecFn(args);
+                };
+            })({
+                path: path,
+                way: way,
+                cwd: cwd
+            }));
+        });
+    });
+    this.queue(toExecFn, function() {
+        if (callback) {
+            callback.call(_this);
         }
     });
 };
 
-svn.choose = function (options, callback) {
-    if (!options.url) {
-        throw new Error('[svn choose error] no url');
-    }
-    var files = [].concat(options.files);
-    files.forEach(function (file) {
 
-    });
-};
-
-// options.path(directory/file)
-// options.revision
-svn.up = svn.update = function(options, callback) {
-    if (typeof options === 'function') {
-        callback = options;
-        options = null;
+svn.up = svn.update = function(command, callback) {
+    if (typeof command === 'function') {
+        callback = command;
+        command = null;
     }
 
     var _this = this,
-        args = ['update', (options && options.path) || this.root];
+        args = ['update'].concat(command ? [command] : []);
 
-    if (options && options.revision !== undefined) {
-        args = args.concat(['-r', options.revision]);
+    if (!command || (command && command.indexOf('--accept') === -1)) {
+        args = args.concat(['--accept', 'postpone']);
     }
-
-    args = args.concat(['--accept', 'postpone']);
-    return this.run('svn', args, function(err, text) {
-        if (!err) {
-            // Update the info if we successfully updated
-            _this.refreshInfoCache('_info', function(err, info) {
-                if (callback) {
-                    callback(null, info);
-                }
-            });
-        } else {
-            if (callback) {
-                callback(err);
-            }
+    return this.run(args, function(err, text) {
+        if (callback) {
+            callback(err, helper.parseActions(text));
         }
     });
 };
 
 svn.sw = svn.switchTo = function(url, callback) {
     var _this = this;
-    return this.run('svn', ['switch', url, this.root, '--accept', 'postpone'], function(err, text) {
-        if (!err) {
-            // Update the info if we successfully updated
-            _this.refreshInfoCache('_info', function(err, info) {
-                callback(null, info);
-            });
-        } else {
-            window.confirm(err + text);
-            callback(err, null);
-        }
-    });
+    return this.run(['switch', url, this.root, '--accept', 'postpone'], callback);
 };
 
-svn.ls = svn.list = function (path, callback) {
-    this.run('svn', ['list', this.root + path], function (err, info) {
+svn.ls = svn.list = function(path, callback) {
+    this.run(['list', path], function(err, info) {
         var data = null;
         if (!err) {
             data = info.replace(/\s*\r\n\s*$/, '').split(/\s*\r\n\s*/);
         }
-        (data||[]).forEach(function (value, i) {
+        (data || []).forEach(function(value, i) {
             var type = /\/$/.test(value) ? 'directory' : 'file';
             data[i] = {
                 name: value.replace(/\/$/, ''),
@@ -150,58 +198,29 @@ svn.ls = svn.list = function (path, callback) {
     });
 };
 
-// TODO: this function really necessary, all I am saving is the scope[...] call?
-svn.refreshInfoCache = function(infoCacheName, callback, revision) {
-    var scope = this;
-    this.info(function(err, info) {
-        scope[infoCacheName] = info;
-        if (callback) {
-            callback(err, info);
-        }
-    }, revision);
-};
-
-svn.isUpToDate = function(callback) {
-    var _this = this;
-    _this.refreshInfoCache('_info', function(err, info) {
-        if (!err) {
-            _this.refreshInfoCache('_headInfo', function(headErr, headInfo) {
-                callback(!headErr && parseInt(info.revision, 10) >= parseInt(headInfo.revision, 10));
-            }, 'HEAD');
-        } else {
-            callback(false);
-        }
-    });
-};
-
-svn.info = function(revision, callback) {
+svn.info = function(command, callback) {
+    if (typeof command === 'function') {
+        callback = command;
+        command = '';
+    }
     var _this = this,
-        args = ['info', this.root];
+        args = ['info'].concat(command.split(/\s+/));
 
-    if (typeof revision === 'function') {
-        callback = revision;
-        revision = '';
-    }
-
-    if (revision) {
-        args = args.concat(['-r', revision]);
-    }
-
-    return this.run('svn', args, function(err, text) {
+    return this.run(args, function(err, text) {
         if (!err) {
-            callback(null, _this._parseInfo(text));
+            callback(null, helper.parseInfo(text));
         } else {
             callback(err, null);
         }
     });
 };
 
-svn.getType = function (url, callback) {
+svn.type = function(url, callback) {
     var _this = this;
-    this.run('svn', ['info', url], function (err, info) {
+    this.run(['info', url], function(err, info) {
         var data, type = '';
         if (!err) {
-            data = _this._parseInfo(info);
+            data = helper.parseInfo(info);
             type = data.nodekind;
         }
         if (callback) {
@@ -210,75 +229,83 @@ svn.getType = function (url, callback) {
     });
 };
 
-svn.log = function(path, limit, callback) {
-    var _this = this;
-    return this.run('svn', ['log', path ? this._info.url + path.replace(/\\/g, '/') : this._info.url, '-v', '-l', limit || 25, '-r', 'HEAD:1', '--incremental'], function(err, text) {
+svn.log = function(command, callback) {
+    if (typeof command === 'function') {
+        callback = command;
+        command = '';
+    }
+    var _this = this,
+        args = ['log'].concat(command.split(/\s+/)).concat(['-v']);
+    return this.run(args, function(err, text) {
         if (!err) {
-            callback(null, _this._parseLog(text));
+            _this.info(function(err, info) {
+                callback(null, helper.parseLog(text, info));
+            });
+
         } else {
             callback(err, null);
         }
     });
 };
 
-svn.revert = function (file, callback) {
-
-};
-
-svn.revertLocal = function(file, callback) {
-    return this.run('svn', ['revert', this.root + file], callback);
-};
-
-svn.revertRevision = function(file, rev, callback) {
-    return this.run('svn', ['merge', '-c', '-' + rev, this._info.url + file.replace(/\\/g, '/'), '--accept', 'postpone'], callback);
+svn.queue = function(queue, callback) {
+    var _this = this;
+    promise.chain(queue).then(function() {
+        if (callback) {
+            callback.apply(_this, arguments);
+        }
+    })
 };
 
 svn.st = svn.status = function(callback) {
     var _this = this;
-    return this.run('svn', ['status', this.root], function(err, text) {
+    return this.run(['status', this.root], function(err, text) {
         if (!err) {
-            callback(null, _this._parseStatus(text));
+            callback(null, helper.parseStatus(text));
         } else {
             callback(err, null);
         }
     });
 };
 
-svn.ci = svn.commit = function(options, callback) {
+svn.ci = svn.commit = function(files, message, callback) {
     var _this = this,
-        args = ['commit', '-m', options.message].concat(options.files.map(function(file) {
-            return _this.root + file;
+        args = ['ci', '-m', '"' + message + '"'].concat([].concat(files).map(function(file) {
+            return file && nodePath.join(_this.root, file);
         }));
-    return this.run('svn', args, callback);
+    return this.run(args, callback);
 };
 
-svn.add = function(path, callback) {
-    return this.run('svn', ['add', this.root + path], callback);
-};
 
 svn.cleanup = function(path, callback) {
-    return this.run('svn', ['cleanup', this.root + path], callback);
+    if (typeof path === 'function') {
+        callback = path;
+        path = '';
+    }
+    return this.run(['cleanup', path], callback);
 };
 
-svn.run = function(cmd, args, callback) {
+svn.run = function(args, callback, cwd) {
     var _this = this,
+        config = this.config,
         text = '',
         err = '',
+        cmd = 'svn',
         proc = spawn(cmd, args, {
-            cwd: this.root
+            cwd: cwd || this.root
         });
 
-    if (cmd === 'svn') {
-        args = args.concat(['--non-interactive', '--trust-server-cert']);
-    }
+    var p = new promise.Promise();
 
-    if (cmd === 'svn' && this.config.username && this.config.password) {
-        args = args.concat(['--username', this.config.username, '--password', this.config.password]);
+    args = args.concat(['--non-interactive', '--trust-server-cert']);
+
+    if (config && config.username && config.password) {
+        args = args.concat(['--username', config.username, '--password', config.password]);
     }
 
     this.emit('cmd', proc, cmd, args);
 
-    console.warn('Running cmd: ', cmd, args.join(' '));
+    console.info('[SVN INFO]', cwd || this.root, '>', cmd, args.join(' '));
 
     proc.stdout.on('data', function(data) {
         text += data;
@@ -286,107 +313,131 @@ svn.run = function(cmd, args, callback) {
 
     proc.stderr.on('data', function(data) {
         data = String(data);
-
-        //ssh warning, ignore
-        if (data.indexOf('Killed by signal 15.') === -1) {
-            err += data;
-            // console.error(data);
-        }
+        console.error('[SVN ERROR]', data);
     });
 
     proc.on('close', function(code) {
         if (callback) {
             callback(err, text);
         }
+        p.done(err, text);
     });
 
-    return proc;
+    this.proc = proc;
+
+    return p;
 };
 
-svn._parseLogEntry = function(logText) {
-    var array = logText.split('\n'),
-        log = {},
-        i = 0,
-        header = array[0],
-        changeString,
-        relativeUrl = this._info.url.replace(this._info.repositoryroot, '');
 
-    while (header === '') {
-        header = array[i += 1];
-    }
-
-    header = header.split(' | ');
-
-    log.revision = header[0].substr(1);
-    log.author = header[1];
-    log.date = new Date(header[2]);
-    log.changes = [];
-
-    for (i = i + 2; i < array.length; i += 1) {
-        changeString = array[i].trim();
-        if (changeString === '') {
-            break;
-        }
-        log.changes.push({
-            path: path.normalize(changeString.substr(1).trim().replace(relativeUrl, '')),
-            status: changeString.substr(0, 1)
+var helper = {
+    parseActions: function(text) {
+        var array = text.replace(/\r\n/g, '\n').split('\n'),
+            actions = [];
+        array.forEach(function(line) {
+            var matched = line.match(/\s*([ADUCGE]|Restored)\s+([^\s]*)\s*/);
+            if (matched && matched[1] && matched[2]) {
+                actions.push({
+                    status: matched[1],
+                    path: matched[2].replace(/\'/g, '')
+                });
+            }
         });
-    }
+        /*
+         * A Added
+         * D Deleted
+         * U Updated
+         * C Conflict
+         * G Merged
+         * E Exists
+         */
+        return actions;
+    },
+    parseInfo: function(text) {
+        var array = text.replace(/\r\n/g, '\n').split('\n'),
+            info = {};
+        array.forEach(function(line) {
+            var firstColon = line.indexOf(':');
+            info[line.substring(0, firstColon).replace(/\s*/g, '').toLowerCase()] = line.substring(firstColon + 1).trim();
+        });
+        return info;
+    },
+    parseStatus: function(text) {
+        var split = text.replace(/\r\n/g, '\n').split('\n'),
+            changes = [],
+            line;
 
-    log.message = '';
-
-    for (i += 1; i < array.length - 1; i += 1) {
-        log.message += array[i];
-        if (i !== array.length - 2) {
-            log.message += '\n';
+        for (var i = 0; i < split.length; i += 1) {
+            line = split[i];
+            if (line.trim().length > 1) {
+                changes.push({
+                    status: line[0],
+                    path: nodePath.resolve(line.substr(7).trim()).replace(this.root, '')
+                });
+            }
         }
-    }
+        return changes;
+    },
+    parseLog: function(text, info) {
+        var array = text.replace(/\r\n/g, '\n').split(/-{2}/),
+            logList = [],
+            item,
+            i;
 
-    return log;
-};
+        array.forEach(function(a) {
+            if (!a) {
+                return;
+            }
+            item = helper.parseLogEntry(a, info);
+            if (item) {
+                logList.push(item);
+            }
+        });
+        return logList;
+    },
+    parseLogEntry: function(logText, info) {
+        var array = logText.split(/\n/),
+            log = {},
+            i = 0,
+            header = array[0],
+            changeString,
+            relativeUrl = info.url.replace(info.repositoryroot, '');
 
-svn._parseInfo = function(text) {
-    var array = text.replace(/\r\n/g, '\n').split('\n'),
-        info = {};
-    array.forEach(function(line) {
-        var firstColon = line.indexOf(':');
-        info[line.substring(0, firstColon).replace(/\s*/g, '').toLowerCase()] = line.substring(firstColon + 1).trim();
-    });
-    return info;
-};
-
-
-svn._parseLog = function(text) {
-    var array = text.replace(/\r\n/g, '\n').split('------------------------------------------------------------------------'),
-        logList = [],
-        item,
-        i;
-
-    for (i = 1; i < array.length; i += 1) {
-        item = this._parseLogEntry(array[i]);
-        if (item) {
-            logList.push(item);
+        while (header === '') {
+            header = array[i += 1];
         }
-    }
 
-    return logList;
-};
+        if (!header) {
+            return null;
+        }
 
-svn._parseStatus = function(text) {
-    var split = text.replace(/\r\n/g, '\n').split('\n'),
-        changes = [],
-        line;
+        header = header.split(/\s*\|\s*/);
 
-    for (var i = 0; i < split.length; i += 1) {
-        line = split[i];
-        if (line.trim().length > 1) {
-            changes.push({
-                status: line[0],
-                path: path.resolve(line.substr(7).trim()).replace(this.root, '')
+        log.revision = header[0].substr(1);
+        log.author = header[1];
+        log.date = new Date(header[2]);
+        log.changes = [];
+
+        for (i = i + 2; i < array.length; i += 1) {
+            changeString = array[i].trim();
+            if (changeString === '') {
+                break;
+            }
+            log.changes.push({
+                path: nodePath.normalize(changeString.substr(1).trim().replace(relativeUrl, '')),
+                status: changeString.substr(0, 1)
             });
         }
+
+        log.message = '';
+
+        for (i += 1; i < array.length - 1; i += 1) {
+            log.message += array[i];
+            if (i !== array.length - 2) {
+                log.message += '\n';
+            }
+        }
+        return log;
     }
-    return changes;
 };
 
 module.exports = function(config, callback) {
@@ -394,14 +445,44 @@ module.exports = function(config, callback) {
 };
 
 
-var mysvn = new SVN({
-    path: 'D:\\mkwork\\test\\test'
-}, function(err, info) {
-    mysvn.st(function(){
-        console.log(arguments);
-    })
+var mysvn = new SVN('D:\\mkwork\\test\\first1');
+// mysvn.st(function(){
+//     console.log(arguments);
+// })
+// mysvn.choose('http://svn.alibaba-inc.com/repos/ali_intl_share/intl-style/branches/20130726_283323_1/deploy/htdocs/js/5v/esite/js', ['/module/part/category-chooser-data-provider.js', '/page/view'], function() {
+//     console.log(arguments)
+// });
+// mysvn.co('http://svn.alibaba-inc.com/repos/ali_intl_share/intl-style/branches/20130726_283323_1/deploy/htdocs/js/5v/esite/js/page/view/', function() {
+//     console.log('arguments', arguments);
+// });
 
-    // mysvn.co('http://svn.alibaba-inc.com/repos/ali_intl_share/intl-style/branches/20130726_283323_1/deploy/htdocs/js/5v/esite/js/ae-combo.js', function() {
-    //     console.log('arguments', arguments);
-    // });
+// mysvn.st(function() {
+//     console.log(arguments)
+// });
+// mysvn.queue([
+//  function () {
+//     return mysvn.add('test2/test2.js', function() {
+//         console.log('test2.js', arguments)
+//     });
+// }], function () {
+//     console.log('a', arguments);
+// });
+
+// mysvn.up(function() {
+//     console.log(arguments)
+// });
+
+// mysvn.info('module/part', function() {
+//     console.log(arguments)
+// });
+// mysvn.log('module/part/category-chooser-data-provider.js -l 1', function(err, logList) {
+//     console.log(logList[0].changes)
+// });
+
+// mysvn.cleanup('module/part', function () {
+//     console.log(arguments)
+// });
+
+mysvn.ci('module/part/category-chooser-data-provider.js', 'tete', function(){
+    console.log(arguments)
 });
