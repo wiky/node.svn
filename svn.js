@@ -61,7 +61,7 @@ var svn = SVN.prototype;
 svn.add = function(path, callback) {
     return this.run(['add', nodePath.join(this.root, path)], function(err, text) {
         if (callback) {
-            callback(err, helper.parseActions(text))
+            callback(err, helper.parseActions(text));
         }
     });
 };
@@ -72,7 +72,6 @@ svn.add = function(path, callback) {
  * @param  {Function} callback
  */
 svn.co = svn.checkout = function(command, callback, cwd) {
-    console.log(command)
     var _this = this,
         args = [],
         options = command.split(/\s+/) || [],
@@ -230,6 +229,7 @@ svn.type = function(url, callback) {
 };
 
 svn.log = function(command, callback) {
+    command = command || '';
     if (typeof command === 'function') {
         callback = command;
         command = '';
@@ -241,7 +241,6 @@ svn.log = function(command, callback) {
             _this.info(function(err, info) {
                 callback(null, helper.parseLog(text, info));
             });
-
         } else {
             callback(err, null);
         }
@@ -254,7 +253,7 @@ svn.queue = function(queue, callback) {
         if (callback) {
             callback.apply(_this, arguments);
         }
-    })
+    });
 };
 
 svn.st = svn.status = function(callback) {
@@ -334,7 +333,7 @@ var helper = {
         var array = text.replace(/\r\n/g, '\n').split('\n'),
             actions = [];
         array.forEach(function(line) {
-            var matched = line.match(/\s*([ADUCGE]|Restored)\s+([^\s]*)\s*/);
+            var matched = line.match(/\s*([ADUCGEM]|Restored)\s+([^\s]*)\s*/);
             if (matched && matched[1] && matched[2]) {
                 actions.push({
                     status: matched[1],
@@ -400,7 +399,7 @@ var helper = {
             i = 0,
             header = array[0],
             changeString,
-            relativeUrl = info.url.replace(info.repositoryroot, '');
+            changeArray;
 
         while (header === '') {
             header = array[i += 1];
@@ -416,15 +415,17 @@ var helper = {
         log.author = header[1];
         log.date = new Date(header[2]);
         log.changes = [];
+        log.info = info;
 
         for (i = i + 2; i < array.length; i += 1) {
             changeString = array[i].trim();
             if (changeString === '') {
                 break;
             }
+            changeArray = changeString.split(/\s+/);
             log.changes.push({
-                path: nodePath.normalize(changeString.substr(1).trim().replace(relativeUrl, '')),
-                status: changeString.substr(0, 1)
+                path: changeArray[1],
+                status: changeArray[0]
             });
         }
 
@@ -445,7 +446,7 @@ module.exports = function(config, callback) {
 };
 
 
-var mysvn = new SVN('D:\\mkwork\\test\\first1');
+var mysvn = new SVN('D:\\mkwork\\test\\view');
 // mysvn.st(function(){
 //     console.log(arguments);
 // })
@@ -475,14 +476,16 @@ var mysvn = new SVN('D:\\mkwork\\test\\first1');
 // mysvn.info('module/part', function() {
 //     console.log(arguments)
 // });
-// mysvn.log('module/part/category-chooser-data-provider.js -l 1', function(err, logList) {
-//     console.log(logList[0].changes)
-// });
+mysvn.log(function(err, logList) {
+    logList.forEach(function (log) {
+        console.log(log.info)
+    })
+});
 
 // mysvn.cleanup('module/part', function () {
 //     console.log(arguments)
 // });
 
-mysvn.ci('module/part/category-chooser-data-provider.js', 'tete', function(){
-    console.log(arguments)
-});
+// mysvn.ci('module/part/category-chooser-data-provider.js', 'tete', function(){
+//     console.log(arguments)
+// });
