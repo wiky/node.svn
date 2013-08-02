@@ -400,7 +400,7 @@ var helper = {
             header = array[0],
             changeString,
             changeArray,
-            relativeUrl = info.url.replace(info.repositoryroot, '');
+            relativeUrl = info.relativeurl.replace('^', '');
 
         while (header === '') {
             header = array[i += 1];
@@ -425,7 +425,7 @@ var helper = {
                 break;
             }
             changeArray = changeString.split(/\s+/);
-            if (changeArray[1].match(relativeUrl)) {
+            if (changeArray[1].indexOf(relativeUrl) !== -1) {
                 log.files.push({
                     path: changeArray[1].replace(relativeUrl, ''),
                     status: changeArray[0]
