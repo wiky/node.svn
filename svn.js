@@ -399,7 +399,8 @@ var helper = {
             i = 0,
             header = array[0],
             changeString,
-            changeArray;
+            changeArray,
+            relativeUrl = info.url.replace(info.repositoryroot, '');
 
         while (header === '') {
             header = array[i += 1];
@@ -414,6 +415,7 @@ var helper = {
         log.revision = header[0].substr(1);
         log.author = header[1];
         log.date = new Date(header[2]);
+        log.files = [];
         log.changes = [];
         log.info = info;
 
@@ -423,6 +425,12 @@ var helper = {
                 break;
             }
             changeArray = changeString.split(/\s+/);
+            if (changeArray[1].match(relativeUrl)) {
+                log.files.push({
+                    path: changeArray[1].replace(relativeUrl, ''),
+                    status: changeArray[0]
+                });
+            }
             log.changes.push({
                 path: changeArray[1],
                 status: changeArray[0]
@@ -444,48 +452,3 @@ var helper = {
 module.exports = function(config, callback) {
     return new SVN(config, callback);
 };
-
-
-var mysvn = new SVN('D:\\mkwork\\test\\view');
-// mysvn.st(function(){
-//     console.log(arguments);
-// })
-// mysvn.choose('http://svn.alibaba-inc.com/repos/ali_intl_share/intl-style/branches/20130726_283323_1/deploy/htdocs/js/5v/esite/js', ['/module/part/category-chooser-data-provider.js', '/page/view'], function() {
-//     console.log(arguments)
-// });
-// mysvn.co('http://svn.alibaba-inc.com/repos/ali_intl_share/intl-style/branches/20130726_283323_1/deploy/htdocs/js/5v/esite/js/page/view/', function() {
-//     console.log('arguments', arguments);
-// });
-
-// mysvn.st(function() {
-//     console.log(arguments)
-// });
-// mysvn.queue([
-//  function () {
-//     return mysvn.add('test2/test2.js', function() {
-//         console.log('test2.js', arguments)
-//     });
-// }], function () {
-//     console.log('a', arguments);
-// });
-
-// mysvn.up(function() {
-//     console.log(arguments)
-// });
-
-// mysvn.info('module/part', function() {
-//     console.log(arguments)
-// });
-mysvn.log(function(err, logList) {
-    logList.forEach(function (log) {
-        console.log(log.info)
-    })
-});
-
-// mysvn.cleanup('module/part', function () {
-//     console.log(arguments)
-// });
-
-// mysvn.ci('module/part/category-chooser-data-provider.js', 'tete', function(){
-//     console.log(arguments)
-// });

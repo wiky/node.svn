@@ -1,0 +1,17 @@
+{
+	"name": "node.svn",
+	"description": "svn command for node",
+	"keywords": ["svn"],
+	"version": "0.1.0",
+	"homepage": "https://github.com/wiky/node.svn",
+	"licenses": [{
+		"type": "MIT",
+		"url": "https://github.com/wiky/node.svn/blob/master/LICENSE"
+	}],
+	"author": "wiky <wiky@f2e.cc>",
+	"main": "svn.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/wiky/node.svn.git"
+	}
+}
