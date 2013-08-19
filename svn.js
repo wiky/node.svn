@@ -248,12 +248,14 @@ svn.log = function(command, callback) {
 };
 
 svn.queue = function(queue, callback) {
-    var _this = this;
-    return promise.chain(queue).then(function() {
+    var _this = this,
+        chain = promise.chain(queue);
+    chain.then(function() {
         if (callback) {
             callback.apply(_this, arguments);
         }
     });
+    return chain;
 };
 
 svn.st = svn.status = function(callback) {
