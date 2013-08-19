@@ -146,7 +146,7 @@ svn.choose = function(url, files, callback) {
             }));
         });
     });
-    this.queue(toExecFn, function() {
+    return this.queue(toExecFn, function() {
         if (callback) {
             callback.call(_this);
         }
@@ -179,7 +179,7 @@ svn.sw = svn.switchTo = function(url, callback) {
 };
 
 svn.ls = svn.list = function(path, callback) {
-    this.run(['list', path], function(err, info) {
+    return this.run(['list', path], function(err, info) {
         var data = null;
         if (!err) {
             data = info.replace(/\s*\r\n\s*$/, '').split(/\s*\r\n\s*/);
@@ -216,7 +216,7 @@ svn.info = function(command, callback) {
 
 svn.type = function(url, callback) {
     var _this = this;
-    this.run(['info', url], function(err, info) {
+    return this.run(['info', url], function(err, info) {
         var data, type = '';
         if (!err) {
             data = helper.parseInfo(info);
@@ -249,7 +249,7 @@ svn.log = function(command, callback) {
 
 svn.queue = function(queue, callback) {
     var _this = this;
-    promise.chain(queue).then(function() {
+    return promise.chain(queue).then(function() {
         if (callback) {
             callback.apply(_this, arguments);
         }
