@@ -9,7 +9,7 @@ var promise = require('./lib/promise').promise;
  *    [o] = svn standard method & finished
  *    [+] = not svn standard method, new add & finished
  *    [ ] = todo
- *    
+ *
  * [o] svn.add
  * [ ] svn.blame
  * [+] svn.choose
@@ -104,13 +104,19 @@ svn.choose = function(url, files, callback) {
     var _this = this,
         toExecFn = [],
         doExecFn = function(args) {
-            var path = args.path.replace(/^\/|\/$/, '');
+            var path = args.path.replace(/^\/|\/$/, ''),
+                ret;
             if (args.way === 'co') {
                 ret = _this.co([
                     url.replace(/\/$/, '') + (path ? '/' + path : ''),
                     path,
                     '--depth=empty'
                 ].join(' '));
+            } else if (args.way === 'up') {
+                ret = _this.up([
+                    path,
+                    '--depth=empty'
+                ]);
             } else {
                 ret = _this.up(path);
             }
@@ -129,12 +135,13 @@ svn.choose = function(url, files, callback) {
         var arr = file.replace(/^\/|\/$/, '').replace(/\/?[^\/]+\/?/g, '$`$&,').split(',');
         arr.pop();
         arr.forEach(function(path, i) {
-            var way = 'co',
+            var way = 'up',
                 cwd = '';
+
             if (i === arr.length - 1) {
-                way = 'up';
-                cwd = nodePath.join(_this.root, arr[0]);
+                way = 'all';
             }
+            cwd = nodePath.join(_this.root, arr[0]);
             toExecFn.push((function(args) {
                 return function(err) {
                     return doExecFn(args);
@@ -153,7 +160,6 @@ svn.choose = function(url, files, callback) {
     });
 };
 
-
 svn.up = svn.update = function(command, callback) {
     if (typeof command === 'function') {
         callback = command;
@@ -161,7 +167,7 @@ svn.up = svn.update = function(command, callback) {
     }
 
     var _this = this,
-        args = ['update'].concat(command ? [command] : []);
+        args = ['update'].concat(command ? [].concat(command) : []);
 
     if (!command || (command && command.indexOf('--accept') === -1)) {
         args = args.concat(['--accept', 'postpone']);
