@@ -266,13 +266,13 @@ svn.queue = function(queue, callback) {
 
 svn.st = svn.status = function(callback) {
     var _this = this;
-    return this.run(['status', this.root], function(err, text) {
+    return this.run(['status'], function(err, text) {
         if (!err) {
             callback(null, helper.parseStatus(text));
         } else {
             callback(err, null);
         }
-    });
+    }, this.root);
 };
 
 svn.ci = svn.commit = function(files, message, callback) {
@@ -378,7 +378,7 @@ var helper = {
             if (line.trim().length > 1) {
                 changes.push({
                     status: line[0],
-                    path: nodePath.resolve(line.substr(7).trim()).replace(this.root, '')
+                    path: line.substr(1).trim()
                 });
             }
         }
