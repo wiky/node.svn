@@ -106,13 +106,19 @@ svn.choose = function(url, files, callback) {
         doExecFn = function(args) {
             var path = args.path.replace(/^\/|\/$/, ''),
                 ret;
-            if (args.way === 'co') {
+            if (args.way === 'info') {
+                ret = _this.info(function(err, result) {
+                    return result;
+                });
+            } else if (args.way === 'co-empty' && args.err) {
+                // [directroy is not exist] or [directroy is not a working copy]
+                // create an checkout directroy
                 ret = _this.co([
                     url.replace(/\/$/, '') + (path ? '/' + path : ''),
                     path,
                     '--depth=empty'
                 ].join(' '));
-            } else if (args.way === 'up') {
+            } else if (args.way === 'up-empty') {
                 ret = _this.up([
                     path,
                     '--depth=empty'
@@ -123,23 +129,34 @@ svn.choose = function(url, files, callback) {
             return ret;
         };
 
-    toExecFn.push((function(args) {
-        return function(err) {
+    toExecFn.push(
+        // getInfo
+        function() {
+            var args = {
+                path: '',
+                way: 'info'
+            };
             return doExecFn(args);
-        };
-    })({
-        path: '',
-        way: 'co'
-    }));
+        },
+        // checkout
+        function(err) {
+            var args = {
+                path: '',
+                way: 'co-empty',
+                err: err
+            };
+            return doExecFn(args);
+        }
+    );
     files.forEach(function(file) {
         var arr = file.replace(/^\/|\/$/, '').replace(/\/?[^\/]+\/?/g, '$`$&,').split(',');
         arr.pop();
         arr.forEach(function(path, i) {
-            var way = 'up',
+            var way = 'up-empty',
                 cwd = '';
-
+            // update all
             if (i === arr.length - 1) {
-                way = 'all';
+                way = 'up';
             }
             cwd = nodePath.join(_this.root, arr[0]);
             toExecFn.push((function(args) {
@@ -212,11 +229,13 @@ svn.info = function(command, callback) {
         args = ['info'].concat(command.split(/\s+/));
 
     return this.run(args, function(err, text) {
+        var ret;
         if (!err) {
-            callback(null, helper.parseInfo(text));
+            ret = callback(null, helper.parseInfo(text));
         } else {
-            callback(err, null);
+            ret = callback(err, null);
         }
+        return ret;
     });
 };
 
@@ -267,11 +286,13 @@ svn.queue = function(queue, callback) {
 svn.st = svn.status = function(callback) {
     var _this = this;
     return this.run(['status'], function(err, text) {
+        var ret = null;
         if (!err) {
-            callback(null, helper.parseStatus(text));
+            ret = callback(null, helper.parseStatus(text));
         } else {
-            callback(err, null);
+            ret = callback(err, null);
         }
+        return ret;
     }, this.root);
 };
 
@@ -296,13 +317,11 @@ svn.run = function(args, callback, cwd) {
     var _this = this,
         config = this.config,
         text = '',
-        err = '',
+        err = null,
         cmd = 'svn',
-        proc = spawn(cmd, args, {
-            cwd: cwd || this.root
-        });
-
-    var p = new promise.Promise();
+        proc,
+        p = new promise.Promise();
+    cwd = cwd || this.root;
 
     args = args.concat(['--non-interactive', '--trust-server-cert']);
 
@@ -314,20 +333,33 @@ svn.run = function(args, callback, cwd) {
 
     console.info('[SVN INFO]', cwd || this.root, '>', cmd, args.join(' '));
 
+    // check cwd
+    if (!fs.existsSync(cwd)) {
+        err = new Error('\'' + cwd + '\' is not exist');
+        p.done(err);
+        return p;
+    }
+    // exec command
+    proc = spawn(cmd, args, {
+        cwd: cwd
+    });
+
     proc.stdout.on('data', function(data) {
         text += data;
     });
 
     proc.stderr.on('data', function(data) {
         data = String(data);
-        console.error('[SVN ERROR]', data);
+        err = new Error(data);
+        // console.error('[SVN ERROR]', data);
     });
 
     proc.on('close', function(code) {
+        var result = null;
         if (callback) {
-            callback(err, text);
+            result = callback(err, text);
         }
-        p.done(err, text);
+        p.done(err, result);
     });
 
     this.proc = proc;
