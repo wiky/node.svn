@@ -112,7 +112,7 @@ svn.choose = function(url, files, callback) {
                 });
             } else if (args.way === 'co-empty' && args.err) {
                 // [directroy is not exist] or [directroy is not a working copy]
-                // create an checkout directroy
+                // create and checkout directroy
                 ret = _this.co([
                     url.replace(/\/$/, '') + (path ? '/' + path : ''),
                     path,
