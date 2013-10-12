@@ -205,7 +205,7 @@ svn.ls = svn.list = function(path, callback) {
     return this.run(['list', path], function(err, info) {
         var data = null;
         if (!err) {
-            data = info.replace(/\s*\r\n\s*$/, '').split(/\s*\r\n\s*/);
+            data = info.replace(/\s*\r?\n\s*$/, '').split(/\s*\r?\n\s*/);
         }
         (data || []).forEach(function(value, i) {
             var type = /\/$/.test(value) ? 'directory' : 'file';
