@@ -43,7 +43,7 @@ var promise = require('./lib/promise').promise;
  * @param  {string} [config.username]
  * @param  {string} [config.password]
  */
-var SVN = function(config) {
+var SVN = function(config, callback) {
     var _this = this;
     this.config = (typeof config === 'string') ? {
         cwd: config
@@ -51,7 +51,11 @@ var SVN = function(config) {
     if (!this.config.cwd) {
         throw new Error('[SVN Error] no cwd');
     }
+    if (!fs.existsSync(this.config.cwd)) {
+        fs.mkdirSync(this.config.cwd);
+    }
     this.root = this.config.cwd || '';
+    this.run(['--version'], callback);
 };
 
 util.inherits(SVN, EventEmitter);
@@ -99,7 +103,7 @@ svn.co = svn.checkout = function(command, callback, cwd) {
     }, cwd);
 };
 
-svn.choose = function(url, files, callback) {
+svn.choose = function(url, files, callback, cwd) {
     files = [].concat(files);
     var _this = this,
         toExecFn = [],
@@ -109,28 +113,29 @@ svn.choose = function(url, files, callback) {
             if (args.way === 'info') {
                 ret = _this.info(function(err, result) {
                     return result;
-                });
-            } else if (args.way === 'co-empty' && args.err) {
+                }, cwd);
+            } else if ((args.way === 'co-empty' || args.way === 'co') && args.err) {
                 // [directroy is not exist] or [directroy is not a working copy]
                 // create and checkout directroy
                 ret = _this.co([
                     url.replace(/\/$/, '') + (path ? '/' + path : ''),
                     path,
-                    '--depth=empty'
-                ].join(' '));
+                    args.way === 'co' ? '--depth=infinity' : '--depth=empty'
+                ].join(' '), cwd);
             } else if (args.way === 'up-empty') {
                 ret = _this.up([
                     path,
                     '--depth=empty'
-                ]);
+                ], cwd);
             } else {
-                ret = _this.up(path);
+                ret = _this.up(path, cwd);
             }
             return ret;
         };
 
     toExecFn.push(
         // getInfo
+
         function() {
             var args = {
                 path: '',
@@ -139,10 +144,11 @@ svn.choose = function(url, files, callback) {
             return doExecFn(args);
         },
         // checkout
+
         function(err) {
             var args = {
                 path: '',
-                way: 'co-empty',
+                way: files.length > 0 ? 'co-empty' : 'co',
                 err: err
             };
             return doExecFn(args);
@@ -177,7 +183,12 @@ svn.choose = function(url, files, callback) {
     });
 };
 
-svn.up = svn.update = function(command, callback) {
+svn.up = svn.update = function(command, callback, cwd) {
+    if (typeof callback === 'string') {
+        cwd = callback;
+        callback = null;
+    }
+
     if (typeof command === 'function') {
         callback = command;
         command = null;
@@ -193,7 +204,7 @@ svn.up = svn.update = function(command, callback) {
         if (callback) {
             callback(err, helper.parseActions(text));
         }
-    });
+    }, cwd);
 };
 
 svn.sw = svn.switchTo = function(url, callback) {
@@ -205,7 +216,7 @@ svn.ls = svn.list = function(path, callback) {
     return this.run(['list', path], function(err, info) {
         var data = null;
         if (!err) {
-            data = info.replace(/\s*\r\n\s*$/, '').split(/\s*\r\n\s*/);
+            data = info.replace(/\s*\r?\n\s*$/, '').split(/\s*\r?\n\s*/);
         }
         (data || []).forEach(function(value, i) {
             var type = /\/$/.test(value) ? 'directory' : 'file';
@@ -220,7 +231,12 @@ svn.ls = svn.list = function(path, callback) {
     });
 };
 
-svn.info = function(command, callback) {
+svn.info = function(command, callback, cwd) {
+    if (typeof callback === 'string') {
+        cwd = callback;
+        callback = null;
+    }
+
     if (typeof command === 'function') {
         callback = command;
         command = '';
@@ -236,7 +252,7 @@ svn.info = function(command, callback) {
             ret = callback(err, null);
         }
         return ret;
-    });
+    }, cwd);
 };
 
 svn.type = function(url, callback) {
@@ -351,7 +367,16 @@ svn.run = function(args, callback, cwd) {
     proc.stderr.on('data', function(data) {
         data = String(data);
         err = new Error(data);
-        // console.error('[SVN ERROR]', data);
+        console.log('[SVN ERROR]', data);
+    });
+
+    proc.on('error', function(error) {
+        var result = null;
+        err = new Error('[SVN ERROR:404] svn command not found');
+        if (error.code === 'ENOENT' && callback) {
+            result = callback(err);
+        }
+        p.done(err, result);
     });
 
     proc.on('close', function(code) {

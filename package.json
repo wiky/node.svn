@@ -2,7 +2,7 @@
 	"name": "node.svn",
 	"description": "svn command for node",
 	"keywords": ["svn"],
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"homepage": "https://github.com/wiky/node.svn",
 	"licenses": [{
 		"type": "MIT",
