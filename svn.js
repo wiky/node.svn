@@ -347,7 +347,7 @@ svn.run = function(args, callback, cwd) {
 
     this.emit('cmd', proc, cmd, args);
 
-    console.info('[SVN INFO]', cwd || this.root, '>', cmd, args.join(' '));
+    console.info('[SVN INFO]', cwd || this.root, '>', cmd, args.join(' ').replace(config.password, '******'));
 
     // check cwd
     if (!fs.existsSync(cwd)) {
