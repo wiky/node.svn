@@ -9,7 +9,7 @@ svn.js
 	var SVN = require('svn');
 	var svn = new SVN();
 
-	svn.co('http://svn.alibaba.com/path/to/your/project', function (err, info) {
+	svn.co('http://svn.example.com/path/to/your/project', function (err, info) {
 		// ..
 	});
 
