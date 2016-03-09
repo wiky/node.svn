@@ -12,36 +12,43 @@ var promise = require('./lib/promise').promise;
  *
  * [o] svn.add
  * [ ] svn.blame
- * [+] svn.choose
  * [ ] svn.cat
+ * [+] svn.choose
  * [o] svn.ci = svn.commit
- * [o] svn.cleanup
  * [ ] svn.cl = svn.changeList
+ * [o] svn.cleanup
  * [o] svn.co = svn.checkout
  * [ ] svn.cp = svn.copy
  * [ ] svn.di = svn.diff
- * [+] svn.type
  * [o] svn.info
- * [o] svn.ls = svn.list
  * [ ] svn.lock
  * [o] svn.log
+ * [o] svn.ls = svn.list
  * [+] svn.queue
+ * [ ] svn.resolve
  * [ ] svn.revert
  * [ ] svn.rm = svn.remove = svn.del
  * [+] svn.run
- * [ ] svn.resolve
  * [o] svn.st = svn.status
  * [o] svn.sw = svn.switchTo
+ * [+] svn.type
  * [ ] svn.unlock
  * [o] svn.up = svn.update
  */
 
+
 /**
- * node svn command
+ * @class SVN
+ * @description node svn command
+ */
+
+/**
+ * @constructor
  * @param  {Object|string} config config, when string, same as config.cwd
  * @param  {string} config.cwd Current work directory
  * @param  {string} [config.username]
  * @param  {string} [config.password]
+ * @param  {Function} callback Callback to call afterwards
  */
 var SVN = function(config, callback) {
     var _this = this;
@@ -62,8 +69,28 @@ util.inherits(SVN, EventEmitter);
 
 var svn = SVN.prototype;
 
-svn.add = function(path, callback) {
-    return this.run(['add', nodePath.join(this.root, path)], function(err, text) {
+/**
+ * @method add
+ * @memberof SVN
+ * @description `svn add` command wrapper
+ * @param  {string}		path		Path to add
+ * @param  {string[]}	[options]	Optional. Options	
+ * @param  {Function}	callback	Function to execute afterwards
+ * @see [svn add documentation]{@link http://svnbook.red-bean.com/en/1.6/svn.ref.svn.c.add.html}
+ */
+svn.add = function(path, options, callback) {
+	if(typeof options != "undefined" && options != null && options.constructor.name == "Function" && typeof callback == "undefined"){ // If was called by `svn.add(path, cb)`
+		callback = options;
+		options = [];
+	}
+	if(typeof options != "undefined" && options != null && options.constructor.name == "String"){ // If a single string option is provided, wrap it in array
+		options = [options];
+	}
+	if(typeof options != "undefined" && options != null && options.constructor.name != "Array"){ // This is not an array, reject it
+		options = [];
+	}
+	
+    return this.run(['add'].concat(options, [nodePath.join(this.root, path)]), function(err, text) {
         if (callback) {
             callback(err, helper.parseActions(text));
         }
