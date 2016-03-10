@@ -72,9 +72,10 @@ var svn = SVN.prototype;
 /**
  * @method add
  * @memberof SVN
- * @description `svn add` command wrapper
+ * @description `svn add` command wrapper.
+ * The `svn add` commands add specified files/directory under version control, recursivelly. If the add operation reach a folder that was not modified since last commit, it will not recurse in it. You can use the `--force` option to disable this behavior and deep explore every folder.
  * @param  {string}		path		Path to add
- * @param  {string[]}	[options]	Optional. Options	
+ * @param  {string[]}	[options]	Optional. Options (like `--force` as explained above)
  * @param  {Function}	callback	Function to execute afterwards
  * @see [svn add documentation]{@link http://svnbook.red-bean.com/en/1.6/svn.ref.svn.c.add.html}
  */
@@ -95,39 +96,6 @@ svn.add = function(path, options, callback) {
             callback(err, helper.parseActions(text));
         }
     });
-};
-
-/**
- * svn co
- * @param  {string}   command  url[[ name] ARGS]
- * @param  {Function} callback
- */
-svn.co = svn.checkout = function(command, callback, cwd) {
-    var _this = this,
-        args = [],
-        options = command.split(/\s+/) || [],
-        url = options.shift(),
-        name = options[0];
-
-    if (typeof callback === 'string') {
-        cwd = callback;
-        callback = null;
-    }
-
-    if (!name || name.substr(1, 1) === '-') {
-        name = nodePath.basename(this.root);
-        cwd = cwd || nodePath.dirname(this.root);
-    } else {
-        name = '';
-    }
-
-    args = ['checkout', url].concat(name ? [name] : []).concat(options);
-
-    return this.run(args, function(err, text) {
-        if (callback) {
-            callback(err, helper.parseActions(text));
-        }
-    }, cwd);
 };
 
 svn.choose = function(url, files, callback, cwd) {
@@ -209,6 +177,41 @@ svn.choose = function(url, files, callback, cwd) {
         }
     });
 };
+
+/**
+ * svn co
+ * @param  {string}   command  url[[ name] ARGS]
+ * @param  {Function} callback
+ */
+svn.co = svn.checkout = function(command, callback, cwd) {
+    var _this = this,
+        args = [],
+        options = command.split(/\s+/) || [],
+        url = options.shift(),
+        name = options[0];
+
+    if (typeof callback === 'string') {
+        cwd = callback;
+        callback = null;
+    }
+
+    if (!name || name.substr(1, 1) === '-') {
+        name = nodePath.basename(this.root);
+        cwd = cwd || nodePath.dirname(this.root);
+    } else {
+        name = '';
+    }
+
+    args = ['checkout', url].concat(name ? [name] : []).concat(options);
+
+    return this.run(args, function(err, text) {
+        if (callback) {
+            callback(err, helper.parseActions(text));
+        }
+    }, cwd);
+};
+
+svn.cp = svn.cp = function
 
 svn.up = svn.update = function(command, callback, cwd) {
     if (typeof callback === 'string') {
