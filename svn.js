@@ -1,3 +1,9 @@
+/**
+ * @file SVN class file
+ * 
+ * @author wiky, Nihilivin
+ */
+
 var spawn = require('child_process').spawn;
 var fs = require('fs');
 var nodePath = require('path');
