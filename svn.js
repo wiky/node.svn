@@ -1,7 +1,8 @@
 /**
  * @file SVN class file
  *
- * @copyright none
+ * @author wiky, Nihilivin
+ * @copyright
  * @license https://raw.githubusercontent.com/wiky/node.svn/master/LICENSE MIT
  * @package node.svn
  *
@@ -48,14 +49,10 @@ var promise = require('./lib/promise').promise;
 [o] svn.up = svn.update
  */
 
+
 /**
  * @class SVN
  * @description node svn command
- */
-
-/**
- * @constructs SVN
- * @memberof SVN#
  * @param  {Object|string} config config, when string, same as config.cwd
  * @param  {string} config.cwd Current work directory
  * @param  {string} [config.username]
