@@ -1,0 +1,121 @@
+{
+    "project": {
+        "project_name": "node.svn",
+        "author": "Nihilivin",
+        "documentation": {
+            "base": {
+                "url": "http://nihilivin.github.io/node.svn",
+                "path": "/mnt/workdata/nodejs/scripts/node.svn_doc/"
+            },
+            "format": [
+                "%BASE%"
+            ],
+            "resources": {
+                "url": "http://nihilivin.github.io/node.svn/resources",
+                "path": "/mnt/workdata/nodejs/scripts/node.svn_doc/resources/"
+            }
+        },
+        "company": {
+            "start": "2015",
+            "name": "GerkinDevelopment"
+        },
+        "commands": [
+            {
+                "git": {
+                    "actions": [
+                        {
+                            "action": "commit",
+                            "data": {
+                                "message": "Pre-process release v%VERSION%"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "files-version": {
+                    "selection": {
+                        "\\.(js)$": true,
+                        "\\.min\\.(js)$": false,
+                        "^\\.\\/lib($|\\/)": false
+                    },
+                    "setDiffs": {
+                        "/(@version\\s+)\\d+(\\.\\d+)*": "$1%VERSION%"
+                    }
+                }
+            },
+            {
+                "jsdoc": {
+                    "private": true,
+                    "selection": {
+                        "\\.(js)$": true,
+                        "\\.min\\.(js)$": false,
+                        "^\\.\\/lib($|\\/)": false
+                    },
+                    "template": "default",
+                    "plugins": [
+                        "plugins/markdown"
+                    ],
+                    "typepath": false
+                }
+            },
+            [
+                {
+                    "git": {
+                        "actions": [
+                            {
+                                "action": "commit",
+                                "data": {
+                                    "message": "Release version %VERSION%"
+                                }
+                            },
+                            {
+                                "action": "tag",
+                                "data": {
+                                    "label": "v%VERSION%",
+                                    "message": "Release version %VERSION%"
+                                }
+                            },
+                            {
+                                "action": "push"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "git": {
+                        "path": "/mnt/workdata/nodejs/scripts/node.svn_doc",
+                        "actions": [
+                            {
+                                "action": "commit",
+                                "data": {
+                                    "message": "Release version %VERSION%"
+                                }
+                            },
+                            {
+                                "action": "tag",
+                                "data": {
+                                    "label": "v%VERSION%",
+                                    "message": "Release version %VERSION%"
+                                }
+                            },
+                            {
+                                "action": "push",
+                                "data": {
+                                    "branch": "gh-pages"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        ],
+        "checksums": {
+            "./svn.js": {
+                "sha1": "1b92d6a93a5168001a1847b64ba914a4ab86924a",
+                "md5": "2ef4b704340c7d87028782a5245090ed"
+            }
+        }
+    },
+    "dirty": false
+}
