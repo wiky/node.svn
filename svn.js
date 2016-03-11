@@ -2,13 +2,13 @@
  * @file SVN class file
  *
  * @author wiky
- * @copyright
+ * @copyright 2016 GerkinDevelopment
  * @license https://raw.githubusercontent.com/wiky/node.svn/master/LICENSE MIT
  * @package node.svn
  *
  * @requires promise
  *
- * @version 0.1.1
+ * @version 0.1.2
  */
 
 var spawn = require('child_process').spawn;
