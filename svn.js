@@ -8,7 +8,7 @@
  *
  * @requires promise
  *
- * @version 0.1.2
+ * @version 0.1.3
  */
 
 var spawn = require('child_process').spawn;
