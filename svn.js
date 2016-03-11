@@ -1,7 +1,7 @@
 /**
  * @file SVN class file
  *
- * @author wiky, Nihilivin
+ * @author wiky
  * @copyright
  * @license https://raw.githubusercontent.com/wiky/node.svn/master/LICENSE MIT
  * @package node.svn
