@@ -2,7 +2,7 @@
  * @file SVN class file
  *
  * @author wiky, Nihilivin
- * @copyright 2016 GerkinDevelopment
+ * @copyright
  * @license https://raw.githubusercontent.com/wiky/node.svn/master/LICENSE MIT
  * @package node.svn
  *
